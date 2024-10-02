@@ -1,6 +1,6 @@
 #!/bin/bash
 
-fifo_path="/tmp/suporte"  # Substitua o caminho para /tmp
+fifo_path="/tmp/suporte"  
 
 # Verifica se o named pipe existe
 if [ ! -p "$fifo_path" ]; then
@@ -8,14 +8,14 @@ if [ ! -p "$fifo_path" ]; then
     exit 1
 fi
 
-# Loop para ler continuamente do named pipe
+
 while true; do
     if read line; then
-        if [ "$line" = "exit" ]; then  # Corrigido para usar "="
+        if [ "$line" = "exit" ]; then  
             echo "Encerrando o loop."
-            exit 0  # Saída normal
+            exit 0  
         fi
-        echo "Mensagem recebida: $line"  # Exibe a mensagem recebida
+        echo "Mensagem recebida: $line"  
     fi
-    sleep 1  # Pausa de 1 segundo antes de continuar no loop
+    sleep 1 
 done < "$fifo_path"
