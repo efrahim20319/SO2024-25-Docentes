@@ -8,14 +8,13 @@ if [ ! -p "$fifo_path" ]; then
     exit 1
 fi
 
-
 while true; do
     if read line; then
-        if [ "$line" = "exit" ]; then  
+        if [ "$line" = "exit" ]; then
             echo "Encerrando o loop."
-            exit 0  
+            exit 0
         fi
-        echo "Mensagem recebida: $line"  
+        echo "Mensagem recebida: $line"
+        sleep 1
     fi
-    sleep 1 
-done < "$fifo_path"
+done <"$fifo_path"
