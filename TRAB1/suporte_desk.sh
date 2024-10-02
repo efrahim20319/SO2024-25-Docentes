@@ -13,6 +13,7 @@ sleep 1
 ./src/main "Nao eh problema nosso, tchau"
 ./src/main exit
 
+wait
 
 rm "/tmp/suporte"
 

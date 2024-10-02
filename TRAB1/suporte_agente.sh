@@ -1,6 +1,6 @@
 #!/bin/bash
 
-fifo_path="/tmp/suporte"  
+fifo_path="/tmp/suporte"
 
 # Verifica se o named pipe existe
 if [ ! -p "$fifo_path" ]; then
