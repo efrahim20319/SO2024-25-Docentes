@@ -6,21 +6,18 @@
 #include <fcntl.h>
 
 #define BSIZE 80
-#define NOMEFIFO "FIFO1"
+#define NOMEFIFO "/tmp/suporte"
 
-char msg1[BSIZE];
-char msg2[BSIZE];
+char msg1[BSIZE] = "teste 1";
 
 int fd;
 pid_t pid;
 
 int main(int argc, char const *argv[])
 {
-    int n;
-
-    if (mkfifo (NOMEFIFO, 0666) < 0) {
-        perror ("mkfifo");
-        exit(1);
+    if(argc > 1)
+    {
+        strcpy(msg1, argv[1]);
     }
 
     if ((fd = open (NOMEFIFO, O_WRONLY)) < 0) {
@@ -28,10 +25,10 @@ int main(int argc, char const *argv[])
         exit(1);
     }
 
+    strcat(msg1, "\n");
     write (fd, msg1, sizeof(msg1));
 
+    sleep(1);
+    close(fd);
     return 0;
 }
-
-
-
