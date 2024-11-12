@@ -24,8 +24,8 @@ NSTUD=$4   # Número de processos student
 # Passo 2 e 3: Calcular o número máximo de horários (NHOR)
 NHOR=$((NALUN / NLUG))
 
-Passo 4: Executar o support_agent em background com o argumento NALUN
-# ./support_agent "$NALUN" &
+#Passo 4: Executar o support_agent em background com o argumento NALUN
+./support_agent "$NALUN" &
 
 
 # Passo 5: Calcular o número de alunos a inscrever por cada processo student
@@ -45,8 +45,8 @@ ALUNO_INICIAL=0
 
 # Loop para iniciar os processos student
 for ((i = 1; i <= NSTUD; i++)); do
-    # ./src/student "$i" "$ALUNO_INICIAL" "$NUM_ALUNOS_POR_SALA" &
-    ./src/student "$i" "$ALUNO_INICIAL" "$NUM_ALUNOS_POR_SALA"
+    ./src/student "$i" "$ALUNO_INICIAL" "$NUM_ALUNOS_POR_SALA" &
+    # ./src/student "$i" "$ALUNO_INICIAL" "$NUM_ALUNOS_POR_SALA"
     ALUNO_INICIAL=$((ALUNO_INICIAL + NUM_ALUNOS_POR_SALA))
 done
 
