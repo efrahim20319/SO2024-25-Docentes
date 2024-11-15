@@ -26,6 +26,8 @@ typedef struct
     char pipeResposta[50];
 } Pedido;
 
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
 int le_pipe(int fd, char *msg_in, int bsize)
 {
     int j;
@@ -46,29 +48,54 @@ int le_pipe(int fd, char *msg_in, int bsize)
 
 void *processa_pedido(void *arg)
 {
-    Pedido *pedido = (Pedido *)arg;
-    int alunos_inscritos = 5;
+    struct
+    {
+        Pedido *pedido;
+        Disciplina *disciplinas;
+        int numero_de_disciplinas;
+        int numero_de_horarios;
+    } *data = arg;
 
-    printf("Thread para aluno_inicial=%d a processar pedido. Pipe de resposta: %s\n",
-           pedido->aluno_inicial, pedido->pipeResposta);
+    Pedido *pedido = data->pedido;
+    Disciplina *disciplinas = data->disciplinas;
+    int numero_de_disciplinas = data->numero_de_disciplinas;
+    int numero_de_horarios = data->numero_de_horarios;
+
+    int alunos_inscritos = 0;
+
+    for (int i = 0; i < numero_de_disciplinas; i++)
+    {
+        for (int j = 0; j < numero_de_horarios; j++)
+        {
+            pthread_mutex_lock(&mutex); // Protege o acesso às vagas
+            if (disciplinas[i].horarios[j].vagas > 0)
+            {
+                disciplinas[i].horarios[j].vagas--;
+                alunos_inscritos++;
+                pthread_mutex_unlock(&mutex);
+                break; // Passa para a próxima disciplina
+            }
+            pthread_mutex_unlock(&mutex);
+        }
+    }
+
+    printf("Pedido processado: alunos_inscritos=%d para aluno_inicial=%d\n", alunos_inscritos, pedido->aluno_inicial);
 
     int fdResposta = open(pedido->pipeResposta, O_WRONLY);
     if (fdResposta == -1)
     {
-        perror("Erro ao abrir o pipe de resposta do student");
-        free(pedido);
+        perror("Erro ao abrir o pipe de resposta");
+        free(data);
         pthread_exit(NULL);
     }
 
-    // Envia o número de alunos inscritos de volta ao student
     if (write(fdResposta, &alunos_inscritos, sizeof(alunos_inscritos)) == -1)
     {
-        perror("Erro ao enviar a resposta ao student");
+        perror("Erro ao enviar a resposta");
     }
     close(fdResposta);
-    printf("Enviada resposta para %s: alunos_inscritos=%d\n", pedido->pipeResposta, alunos_inscritos);
 
-    free(pedido);
+    free(data);
     pthread_exit(NULL);
 }
 
@@ -99,28 +126,7 @@ int main(int argc, char const *argv[])
     int numero_de_disciplinas = atoi(argv[4]);
 
     Disciplina disciplinas[numero_de_disciplinas];
-
     iniciarDisciplinas(disciplinas, numero_de_disciplinas, numero_de_horarios, numero_de_lugares);
-
-    int alunos_inscritos = 0;
-    char bufferPedido[256];
-
-    printf("[---  %d | %d | %d | %d  ---]\n", numero_de_alunos, numero_de_horarios, numero_de_lugares, numero_de_disciplinas);
-
-    // Verificação dos valores inicializados
-    printf("\nVerificação da inicialização das disciplinas:\n");
-    for (int i = 0; i < numero_de_disciplinas; i++)
-    {
-        printf("Disciplina %d:\n", i + 1);
-        for (int j = 0; j < numero_de_horarios; j++)
-        {
-            printf("  Horário %d -> Lugares: %d, Vagas: %d\n",
-                   j + 1,
-                   disciplinas[i].horarios[j].lugares,
-                   disciplinas[i].horarios[j].vagas);
-        }
-    }
-
 
     printf("Abrindo o pipe para leitura -> /tmp/suporte\n");
     int fdSuporte = open("/tmp/suporte", O_RDONLY);
@@ -130,6 +136,7 @@ int main(int argc, char const *argv[])
         return 1;
     }
 
+    char bufferPedido[256];
     while (le_pipe(fdSuporte, bufferPedido, sizeof(bufferPedido)) > 0)
     {
         Pedido *pedido = malloc(sizeof(Pedido));
@@ -140,23 +147,42 @@ int main(int argc, char const *argv[])
         }
 
         sscanf(bufferPedido, "%d %d %s", &pedido->aluno_inicial, &pedido->num_alunos, pedido->pipeResposta);
-        printf("Pedido recebido: aluno_inicial=%d, num_alunos=%d, pipeResposta=%s\n",
-               pedido->aluno_inicial, pedido->num_alunos, pedido->pipeResposta);
 
-        pthread_t tid;
-        if (pthread_create(&tid, NULL, processa_pedido, (void *)pedido) != 0)
+        struct
         {
-            perror("Erro ao criar thread para o pedido");
+            Pedido *pedido;
+            Disciplina *disciplinas;
+            int numero_de_disciplinas;
+            int numero_de_horarios;
+        } *data = malloc(sizeof(*data));
+
+        if (data == NULL)
+        {
+            perror("Erro ao alocar memória para dados da thread");
             free(pedido);
+            continue;
         }
 
-        if (pthread_join(tid, NULL) != 0)
+        data->pedido = pedido;
+        data->disciplinas = disciplinas;
+        data->numero_de_disciplinas = numero_de_disciplinas;
+        data->numero_de_horarios = numero_de_horarios;
+
+        pthread_t tid;
+        if (pthread_create(&tid, NULL, processa_pedido, data) != 0)
         {
+            perror("Erro ao criar thread");
+            free(pedido);
+            free(data);
+        }
+
+        if (pthread_join(tid, NULL) != 0) {
             printf("Fck hll\n");
             return 1;
         }
     }
 
     close(fdSuporte);
+    pthread_mutex_destroy(&mutex);
     return 0;
 }
