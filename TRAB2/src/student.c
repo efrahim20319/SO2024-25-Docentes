@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
 
     // Lê o número de alunos efetivamente inscritos
     if (read(fdResposta, &alunos_inscritos, sizeof(alunos_inscritos)) > 0) {
-        printf("student %d: alunos inscritos=%d\n", student_id, alunos_inscritos);
+        printf("\033[32mstudent %d: alunos inscritos=%d\033[0m\n", student_id, alunos_inscritos);
     } else {
         perror("Erro ao ler a resposta do support_agent");
     }
