@@ -6,6 +6,19 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#define MAX_HORARIOS 100
+
+typedef struct
+{
+    int lugares;
+    int vagas;
+} Horario;
+
+typedef struct
+{
+    Horario horarios[MAX_HORARIOS];
+} Disciplina;
+
 typedef struct
 {
     int aluno_inicial;
@@ -39,7 +52,6 @@ void *processa_pedido(void *arg)
     printf("Thread para aluno_inicial=%d a processar pedido. Pipe de resposta: %s\n",
            pedido->aluno_inicial, pedido->pipeResposta);
 
-
     int fdResposta = open(pedido->pipeResposta, O_WRONLY);
     if (fdResposta == -1)
     {
@@ -60,16 +72,55 @@ void *processa_pedido(void *arg)
     pthread_exit(NULL);
 }
 
+void iniciarDisciplinas(Disciplina *disciplinas, int numero_de_disciplinas, int numero_de_horarios, int numero_de_lugares)
+{
+    for (int i = 0; i < numero_de_disciplinas; i++)
+    {
+        for (int j = 0; j < numero_de_horarios; j++)
+        {
+            disciplinas[i].horarios[j].lugares = numero_de_lugares;
+            disciplinas[i].horarios[j].vagas = numero_de_lugares;
+        }
+    }
+    printf("Disciplinas e horários inicializados com %d lugares por horário.\n", numero_de_lugares);
+}
+
 int main(int argc, char const *argv[])
 {
-    if (argc != 2)
+    if (argc != 5)
     {
-        fprintf(stderr, "Uso: %s <numero_de_alunos>\n", argv[0]);
+        fprintf(stderr, "Uso: %s <numero_de_alunos> <numero_de_horarios> <numero_de_lugares> <numero_de_disciplinas>\n", argv[0]);
         return 1;
     }
 
-    int max_alunos = atoi(argv[1]);
+    int numero_de_alunos = atoi(argv[1]);
+    int numero_de_horarios = atoi(argv[2]);
+    int numero_de_lugares = atoi(argv[3]);
+    int numero_de_disciplinas = atoi(argv[4]);
+
+    Disciplina disciplinas[numero_de_disciplinas];
+
+    iniciarDisciplinas(disciplinas, numero_de_disciplinas, numero_de_horarios, numero_de_lugares);
+
+    int alunos_inscritos = 0;
     char bufferPedido[256];
+
+    printf("[---  %d | %d | %d | %d  ---]\n", numero_de_alunos, numero_de_horarios, numero_de_lugares, numero_de_disciplinas);
+
+    // Verificação dos valores inicializados
+    printf("\nVerificação da inicialização das disciplinas:\n");
+    for (int i = 0; i < numero_de_disciplinas; i++)
+    {
+        printf("Disciplina %d:\n", i + 1);
+        for (int j = 0; j < numero_de_horarios; j++)
+        {
+            printf("  Horário %d -> Lugares: %d, Vagas: %d\n",
+                   j + 1,
+                   disciplinas[i].horarios[j].lugares,
+                   disciplinas[i].horarios[j].vagas);
+        }
+    }
+
 
     printf("Abrindo o pipe para leitura -> /tmp/suporte\n");
     int fdSuporte = open("/tmp/suporte", O_RDONLY);
