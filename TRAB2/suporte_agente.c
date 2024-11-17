@@ -166,7 +166,7 @@ int main(int argc, char const *argv[])
 {
     if (argc != 6)
     {
-        fprintf(stderr, "Uso: %s <numero_de_alunos> <numero_de_horarios> <numero_de_lugares> <numero_de_disciplinas>\n", argv[0]);
+        fprintf(stderr, "Uso: %s <numero_de_alunos> <numero_de_horarios> <numero_de_lugares> <numero_de_disciplinas> <pipe>\n", argv[0]);
         return 1;
     }
 
