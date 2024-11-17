@@ -7,6 +7,7 @@
 #include <pthread.h>
 
 #define MAX_HORARIOS 100
+#define MAX_THREADS 500
 
 typedef struct
 {
@@ -46,6 +47,30 @@ int le_pipe(int fd, char *msg_in, int bsize)
     return j;
 }
 
+void verificarHorariosCheios(Disciplina *disciplinas, Pedido *pedido, int numero_de_disciplinas, int numero_de_horarios)
+{
+    int todos_cheios = 1;
+
+    for (int i = 0; i < numero_de_disciplinas && todos_cheios; i++)
+    {
+        for (int j = 0; j < numero_de_horarios; j++)
+        {
+            if (disciplinas[i].horarios[j].vagas > 0)
+            {
+                todos_cheios = 0;
+                break;
+            }
+        }
+    }
+
+    if (todos_cheios)
+    {
+        printf("\033[1;31mTodos os horários estão cheios. Encerrando o programa.\033[0m\n");
+        
+        exit(0);
+    }
+}
+
 void *processa_pedido(void *arg)
 {
     struct
@@ -62,24 +87,49 @@ void *processa_pedido(void *arg)
     int numero_de_horarios = data->numero_de_horarios;
 
     int alunos_inscritos = 0;
+    int alunos_para_increver = pedido->num_alunos;
 
     for (int i = 0; i < numero_de_disciplinas; i++)
     {
         for (int j = 0; j < numero_de_horarios; j++)
         {
-            pthread_mutex_lock(&mutex); // Protege o acesso às vagas
-            if (disciplinas[i].horarios[j].vagas > 0)
+            pthread_mutex_lock(&mutex);
+            verificarHorariosCheios(disciplinas, pedido, numero_de_disciplinas, numero_de_horarios);
+
+            if (disciplinas[i].horarios[j].vagas > 0 && alunos_para_increver > 0)
             {
-                disciplinas[i].horarios[j].vagas--;
-                alunos_inscritos++;
-                pthread_mutex_unlock(&mutex);
+                if (disciplinas[i].horarios[j].vagas - alunos_para_increver >= 0)
+                {
+                    disciplinas[i].horarios[j].vagas -= alunos_para_increver;
+                    alunos_inscritos++;
+                    printf("\033[1;33mDisciplina %d, Horario %d, Vagas restantes: %d\033[0m\n", i, j, disciplinas[i].horarios[j].vagas);
+                    pthread_mutex_unlock(&mutex);
+
+                    break; // Passa para a próxima disciplina
+                }
+                else
+                {
+                    disciplinas[i].horarios[j].vagas = 0;
+                    alunos_inscritos++;
+                    printf("\033[1;33mDisciplina %d, Horario %d, Vagas restantes: %d\033[0m\n", i, j, disciplinas[i].horarios[j].vagas);
+                    pthread_mutex_unlock(&mutex);
+                    break; // Passa para a próxima disciplina
+                }
+
+                //  OUTRA LOGICA
+                // disciplinas[i].horarios[j].vagas--;
+                // alunos_inscritos++;
+                // alunos_para_increver--;
+                // printf("\033[1;33mDisciplina %d, Horario %d, Vagas restantes: %d\033[0m\n", i, j, disciplinas[i].horarios[j].vagas);
+                // pthread_mutex_unlock(&mutex);
+
                 break; // Passa para a próxima disciplina
             }
             pthread_mutex_unlock(&mutex);
         }
     }
 
-    printf("Pedido processado: alunos_inscritos=%d para aluno_inicial=%d\n", alunos_inscritos, pedido->aluno_inicial);
+    // printf("Pedido processado: alunos_inscritos=%d para aluno_inicial=%d\n", alunos_inscritos, pedido->aluno_inicial);
 
     int fdResposta = open(pedido->pipeResposta, O_WRONLY);
     if (fdResposta == -1)
@@ -109,12 +159,12 @@ void iniciarDisciplinas(Disciplina *disciplinas, int numero_de_disciplinas, int 
             disciplinas[i].horarios[j].vagas = numero_de_lugares;
         }
     }
-    printf("Disciplinas e horários inicializados com %d lugares por horário.\n", numero_de_lugares);
+    // printf("Disciplinas e horários inicializados com %d lugares por horário.\n", numero_de_lugares);
 }
 
 int main(int argc, char const *argv[])
 {
-    if (argc != 5)
+    if (argc != 6)
     {
         fprintf(stderr, "Uso: %s <numero_de_alunos> <numero_de_horarios> <numero_de_lugares> <numero_de_disciplinas>\n", argv[0]);
         return 1;
@@ -128,8 +178,8 @@ int main(int argc, char const *argv[])
     Disciplina disciplinas[numero_de_disciplinas];
     iniciarDisciplinas(disciplinas, numero_de_disciplinas, numero_de_horarios, numero_de_lugares);
 
-    printf("Abrindo o pipe para leitura -> /tmp/suporte\n");
-    int fdSuporte = open("/tmp/suporte", O_RDONLY);
+    // printf("Abrindo o pipe para leitura -> /tmp/suporte\n");
+    int fdSuporte = open(argv[5], O_RDONLY);
     if (fdSuporte == -1)
     {
         perror("Erro ao abrir o pipe");
@@ -137,6 +187,10 @@ int main(int argc, char const *argv[])
     }
 
     char bufferPedido[256];
+
+    pthread_t threads[MAX_THREADS];
+    int thread_count = 0;
+    sleep(3);
     while (le_pipe(fdSuporte, bufferPedido, sizeof(bufferPedido)) > 0)
     {
         Pedido *pedido = malloc(sizeof(Pedido));
@@ -167,19 +221,30 @@ int main(int argc, char const *argv[])
         data->disciplinas = disciplinas;
         data->numero_de_disciplinas = numero_de_disciplinas;
         data->numero_de_horarios = numero_de_horarios;
-
-        pthread_t tid;
-        if (pthread_create(&tid, NULL, processa_pedido, data) != 0)
+        if (pthread_create(&threads[thread_count], NULL, processa_pedido, data) != 0)
         {
             perror("Erro ao criar thread");
             free(pedido);
             free(data);
         }
-
-        if (pthread_join(tid, NULL) != 0) {
-            printf("Fck hll\n");
-            return 1;
+        else
+        {
+            pthread_join(threads[thread_count], NULL);
         }
+        thread_count++;
+        if (thread_count == MAX_THREADS)
+        {
+            printf("Limite de Threads excedido!!!\n\n\n");
+            for (int i = 0; i < thread_count; i++)
+            {
+                pthread_join(threads[i], NULL);
+            }
+            thread_count = 0;
+        }
+    }
+    for (int i = 0; i < thread_count; i++)
+    {
+        pthread_join(threads[i], NULL);
     }
 
     close(fdSuporte);
